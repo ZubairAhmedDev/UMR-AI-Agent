@@ -1,0 +1,13 @@
+schema_version: "1.0"
+umr_repository: /opt/umr
+umr_git_commit: PIN_A_TESTED_FULL_COMMIT
+umr_python: /opt/conda/envs/umr/bin/python
+smpl_model_root: /secure/models/smpl
+artifact_root: /srv/umr-agent/projects
+network_enabled: false
+limits:
+  cpus: 12
+  memory_gib: 32
+  gpu_ids: [0]
+  timeout_seconds: 14400
+

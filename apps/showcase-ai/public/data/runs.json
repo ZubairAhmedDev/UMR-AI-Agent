@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "project": "UMR Agent · G1 motion verification",
+  "robot": "Unitree G1 (29 DoF)",
+  "umr_commit": "c56b6301ded02a187a30cc6aafa4f535735104d2",
+  "method": "UMR Character pipeline; correspondence slots reused from the G1 CPU smoke run; deterministic, hash-approved local execution",
+  "limitations": ["Foot contact and skating were not measured", "Visual motion quality requires a human review", "Velocity flags use a 720°/s heuristic, not a physical safety limit", "Trajectories are kinematic results, not verified hardware commands"],
+  "runs": [
+    {
+      "id": "spin-kick", "title": "Spin kick", "source": "humanoid_spinkick.pkl", "attempt": "g1-spin-full-002", "frames": 78, "fps": 60,
+      "result_sha256": "035d64cf14567197f19500b6571373bd751c8e71fec98f850d513bf40cafabc6",
+      "plan_hash": "d69d007c629655b1bc32592114d6cd4e5660cd21e8a11e104e42e554a5093d8c",
+      "max_hinge_deg_s": 1542.27, "max_root_m_s": 1.947,
+      "warnings": [
+        {"joint":"right_elbow_joint","frames":[1,18,21,22,23,43,44,45,46,58,59,60,66,67,68]},
+        {"joint":"right_wrist_pitch_joint","frames":[1,67]},
+        {"joint":"left_elbow_joint","frames":[28,29,30]},
+        {"joint":"left_knee_joint","frames":[32,33,34]},
+        {"joint":"right_knee_joint","frames":[36,37,38,44,45,46,47,48]},
+        {"joint":"left_hip_pitch_joint","frames":[49,50,51]},
+        {"joint":"left_hip_roll_joint","frames":[49]},
+        {"joint":"right_hip_pitch_joint","frames":[49,50,63,64]},
+        {"joint":"right_hip_roll_joint","frames":[50,51]},
+        {"joint":"left_ankle_pitch_joint","frames":[52,53]}
+      ],
+      "provenance_note": "Playback XML was measured later; its hash was not captured in this completed run."
+    },
+    {
+      "id": "run", "title": "Run", "source": "humanoid_run.pkl", "attempt": "g1-run-full-001", "frames": 25, "fps": 30,
+      "result_sha256": "63af75e16bfc97ff440bf481e18a68df8825688edb9f0bbd680cd5fcae833692",
+      "plan_hash": "6f8dbb62e5f8a2d5a2dfa99af7007fdb4758d611f0d494c2815ae6ea7323bcc9",
+      "viewer_xml_sha256": "fe3a3615fbd6e2b42720b8d92514703ce6597a2989499b10b74e8cc74cf6e827",
+      "max_hinge_deg_s": 812.59, "max_root_m_s": 3.503,
+      "warnings": [
+        {"joint":"left_knee_joint","frames":[12]},
+        {"joint":"left_ankle_pitch_joint","frames":[18]}
+      ],
+      "provenance_note": "Playback XML hash recorded with the completed run."
+    },
+    {
+      "id": "speed-vault", "title": "Speed vault", "source": "humanoid_speed_vault.pkl", "attempt": "g1-vault-full-001", "frames": 116, "fps": 60,
+      "result_sha256": "2cd331c1dc992949bf3d8dba72e05d9aa2c211bd3d44ea36eba2d2b7b2d24813",
+      "plan_hash": "62d81ee14e6b7455c94e72796e4c5820e682c2843d4dc85a52f8859ac3632d41",
+      "viewer_xml_sha256": "fe3a3615fbd6e2b42720b8d92514703ce6597a2989499b10b74e8cc74cf6e827",
+      "max_hinge_deg_s": 1433.39, "max_root_m_s": 2.927,
+      "warnings": [
+        {"joint":"left_knee_joint","frames":[16]},
+        {"joint":"left_ankle_pitch_joint","frames":[17]},
+        {"joint":"right_knee_joint","frames":[29,30,31]},
+        {"joint":"waist_roll_joint","frames":[73,79]}
+      ],
+      "provenance_note": "Playback XML hash recorded with the completed run."
+    }
+  ]
+}

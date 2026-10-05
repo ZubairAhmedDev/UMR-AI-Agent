@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "plan_id": "plan-unitree-g1-demo-001",
+  "project_id": "project-umr-demo",
+  "robot": {
+    "robot_id": "unitree-g1",
+    "name": "Unitree G1",
+    "mjcf_path": "assets/g1/g1_29dof.xml",
+    "root_body": "waist_yaw_link",
+    "tpose_qpos_path": null,
+    "asset_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "tpose_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "motion": {
+    "motion_id": "humanoid-spin-kick",
+    "source_type": "humanoid_character",
+    "path": "sample_data/humanoid_character/humanoid_spinkick.pkl",
+    "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "sequence_key": "humanoid_spinkick",
+    "frames": null,
+    "fps": null,
+    "template_id": "humanoid-character-v1"
+  },
+  "pipeline": {
+    "entrypoint": "scripts/humanoid_retarget_pipeline_character.py",
+    "robot_config_path": "robot_configs/humanoid_retarget_unitree_g1_example.json",
+    "robot_config_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "defaults_path": null
+  },
+  "resources": {
+    "cpus": 6,
+    "memory_gib": 24,
+    "gpu_ids": [0],
+    "timeout_seconds": 14400
+  },
+  "cache_policy": "reuse_if_exact",
+  "requested_outputs": ["robot_motion_npz", "manifest", "quality_report", "logs"],
+  "umr_git_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "correspondence_settings_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+  "created_by": "demo-user",
+  "created_at": "2026-09-19T12:00:00Z"
+}

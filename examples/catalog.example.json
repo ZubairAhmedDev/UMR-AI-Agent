@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "robots": [
+    {
+      "robot_id": "unitree-g1",
+      "name": "Unitree G1",
+      "aliases": ["G1", "Unitree"],
+      "registered": false
+    }
+  ],
+  "motions": [
+    {
+      "motion_id": "humanoid-spin-kick",
+      "name": "Humanoid Character Spin Kick",
+      "aliases": ["spin kick", "kick"],
+      "source_type": "humanoid_character",
+      "registered": false
+    },
+    {
+      "motion_id": "humanoid-run",
+      "name": "MimicKit Humanoid Run",
+      "aliases": ["run", "running"],
+      "source_type": "humanoid_character",
+      "registered": false
+    },
+    {
+      "motion_id": "humanoid-speed-vault",
+      "name": "MimicKit Humanoid Speed Vault",
+      "aliases": ["speed vault", "vault"],
+      "source_type": "humanoid_character",
+      "registered": false
+    },
+    {
+      "motion_id": "lafan-dance1-subject2",
+      "name": "LAFAN1 Dance 1 Subject 2",
+      "aliases": ["dance sample", "dance1 subject2"],
+      "source_type": "smplx",
+      "registered": false
+    }
+  ]
+}

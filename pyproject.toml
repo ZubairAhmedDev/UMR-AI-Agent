@@ -1,0 +1,38 @@
+[project]
+name = "umr-agent"
+version = "0.1.0"
+description = "A safe, deterministic orchestration layer for Unified Motion Retargeting."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "pydantic>=2.10,<3",
+  "pyyaml>=6.0,<7",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
+  "numpy>=1.26,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+  "ruff>=0.8,<1",
+  "httpx>=0.27,<1",
+]
+
+[project.scripts]
+umr-agent = "umr_agent.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/umr_agent"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

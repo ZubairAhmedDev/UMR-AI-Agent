@@ -1,0 +1,18 @@
+G1 ATTEMPT RESUME UPDATE
+
+Purpose: restore a prepared or running G1 attempt after a browser refresh. The web app reads the verified plan and status from Ubuntu; it does not trust a saved browser copy of the plan. Approval is cleared and must be given again if the attempt has not launched. Advanced hashes remain available below the Start button.
+
+Install from Windows CMD after the current attempt has finished:
+  cd /d "C:\UMR\UMR_agent\UMR_AI_Agent_PROD\UMR_AI_Agent_Starter_Repo"
+  powershell -NoProfile -Command "Expand-Archive -LiteralPath '%USERPROFILE%\Downloads\UMR_G1_Resume_Update.zip' -DestinationPath '.' -Force"
+
+Restart the Windows FastAPI server and the Next.js development server so both receive the new read-only plan route.
+
+Tests from the project root in Windows CMD:
+  uv run python -m unittest discover -s tests -p test_attempt_bridge.py -v
+  uv run python -m unittest discover -s tests -p test_character_worker.py -v
+  uv run python -m unittest discover -s tests -p test_api.py -v
+  cd apps\web
+  npm run typecheck
+
+Usage: Prepare a G1 plan normally. If the tab refreshes, it should restore the attempt. You can also type an earlier attempt ID and select Resume existing attempt. Review the plan and tick the confirmation box before starting an unlaunched attempt. Existing completed attempts remain read-only.

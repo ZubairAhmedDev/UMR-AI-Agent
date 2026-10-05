@@ -1,0 +1,15 @@
+{
+  "name": "red-poetry-5c21",
+  "main": "./worker/index.js",
+  "compatibility_date": "2026-09-30",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/chat"]
+  },
+  "ai": { "binding": "AI" },
+  "ratelimits": [
+    { "name": "CHAT_TOTAL", "namespace_id": "927541", "simple": { "limit": 20, "period": 60 } },
+    { "name": "CHAT_VISITOR", "namespace_id": "927542", "simple": { "limit": 5, "period": 60 } }
+  ]
+}

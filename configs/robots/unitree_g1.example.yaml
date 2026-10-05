@@ -1,0 +1,9 @@
+schema_version: "1.0"
+robot_id: unitree-g1
+name: Unitree G1
+mjcf_path: robots/unitree_g1/g1_29dof.xml
+root_body: waist_yaw_link
+tpose_qpos_path: robots/unitree_g1/tpose_qpos.npy
+asset_sha256: REPLACE_AFTER_REGISTRATION
+tpose_sha256: REPLACE_AFTER_REGISTRATION
+
