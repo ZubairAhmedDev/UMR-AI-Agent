@@ -35,7 +35,7 @@ REPORT = AttemptDiagnosis(attempt="run-001", plan_hash=HASH, result_sha256="b" *
                                "joint": "left_knee_joint", "frames": [12]}],
                           viewer_xml="assets/g1/humanoid_run_g1.floating_mjcf.xml",
                           viewer_xml_sha256="c" * 64, viewer_model_provenance="recorded in completed run",
-                          checks_not_run=["foot_ground_contact", "foot_skating", "visual_motion_review"],
+                          checks_not_run=["visual_motion_review"],
                           thresholds={"hinge_velocity_deg_s": 720})
 
 
@@ -49,6 +49,8 @@ class DiagnosisLoopTests(unittest.TestCase):
         self.assertEqual(calls, [("run-001", "status"), ("run-001", "diagnose")])
         self.assertEqual(reply.steps, ("get_run_status", "diagnose_result"))
         self.assertIn("left_knee_joint", reply.summary)
+        self.assertIn("Visual motion quality still requires human review.", reply.summary)
+        self.assertNotIn("Foot contact, skating", reply.summary)
         self.assertEqual(reply.diagnosis.frames, 25)
 
     def test_unfinished_attempt_stops_before_diagnosis(self) -> None:

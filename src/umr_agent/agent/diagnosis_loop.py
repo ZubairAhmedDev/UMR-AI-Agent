@@ -57,7 +57,7 @@ class RuleBasedDiagnosisModel:
             summary = f"{report['frames']} frames inspected. {len(errors)} errors, {len(warnings)} warning groups. Review {highlighted}."
         else:
             summary = f"{report['frames']} frames inspected. {len(errors)} errors and no velocity warning groups."
-        summary += " Foot contact, skating, and visual quality remain unverified."
+        summary += " Visual motion quality still requires human review."
         return ToolCall(name=Action.FINISH, summary=summary)
 
 
