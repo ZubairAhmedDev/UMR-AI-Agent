@@ -28,16 +28,33 @@ class AssetStatus(StrictModel):
     manifest_sha256: str | None = None
 
 
-def check_assets(distro: str | None, root: str | None, script: str | None) -> AssetStatus:
-    if not all((distro, root, script)):
+def check_assets(
+    distro: str | None,
+    root: str | None,
+    script: str | None,
+    execution_mode: str = "wsl",
+) -> AssetStatus:
+    if execution_mode not in {"wsl", "native"}:
+        return AssetStatus(state="failed", message="Asset execution mode is invalid.")
+    if not all((root, script)):
+        return AssetStatus(state="unconfigured", message="Asset check is not configured.")
+    if execution_mode == "wsl" and not distro:
         return AssetStatus(state="unconfigured", message="WSL asset check is not configured.")
     # Values come only from the local server configuration, never an HTTP request.
     if any(not PurePosixPath(path).is_absolute() or ".." in PurePosixPath(path).parts
            for path in (root, script)):
         return AssetStatus(state="failed", message="WSL asset paths are invalid.")
+    python = f"{root}/.venv/bin/python"
+    prefix = (
+        ["wsl.exe", "-d", distro, "--exec", python]
+        if execution_mode == "wsl"
+        else [python]
+    )
     command = [
-        "wsl.exe", "-d", distro, "--exec", f"{root}/.venv/bin/python", script,
-        "--umr-root", root, "--out", f"{root}/output/g1_asset_registration.json",
+        *prefix,
+        script,
+        "--umr-root", root,
+        "--out", f"{root}/output/g1_asset_registration.json",
         "--verify", "--json",
     ]
     try:

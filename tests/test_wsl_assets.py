@@ -59,6 +59,38 @@ class WslAssetTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["state"], "unconfigured")
 
+    def test_native_verification_executes_python_without_wsl(self) -> None:
+        output = {
+            "verified": True,
+            "robot_config": "robot_configs/humanoid_retarget_unitree_g1_example.json",
+            "robot_xml": "assets/g1/g1_29dof.xml",
+            "motion": "sample_data/humanoid_character/humanoid_spinkick.pkl",
+            "correspondence_slots": "output/g1_cpu_smoke_512/correspondence_slots_final.npz",
+            "sequence_key": "humanoid_spinkick",
+            "umr_git_commit": "a" * 40,
+            "file_count": 144,
+            "robot_config_sha256": "1" * 64,
+            "robot_xml_sha256": "2" * 64,
+            "motion_sha256": "3" * 64,
+            "correspondence_slots_sha256": "5" * 64,
+            "manifest_sha256": "4" * 64,
+        }
+
+        with patch("umr_agent.api.wsl_assets.subprocess.run") as run:
+            run.return_value = SimpleNamespace(returncode=0, stdout=json.dumps(output))
+            status = check_assets(
+                None,
+                "/srv/UMR",
+                "/srv/agent/scripts/register_umr_assets.py",
+                execution_mode="native",
+            )
+
+        self.assertEqual(status.state, "verified")
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "/srv/UMR/.venv/bin/python")
+        self.assertEqual(command[1], "/srv/agent/scripts/register_umr_assets.py")
+        self.assertNotIn("wsl.exe", command)
+
 
 if __name__ == "__main__":
     unittest.main()

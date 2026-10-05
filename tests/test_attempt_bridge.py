@@ -66,6 +66,59 @@ class AttemptBridgeTests(unittest.TestCase):
                           "/mnt/c/agent/scripts/register_umr_assets.py",
                           "launch", "g1-run-002", approved_hash="a" * 64)
 
+    def test_native_launch_executes_python_without_wsl(self) -> None:
+        approved = "a" * 64
+        output = json.dumps({
+            "attempt": "prod-run-001",
+            "state": "queued",
+            "plan_hash": approved,
+        })
+        with patch(
+            "umr_agent.api.wsl_attempts.subprocess.run",
+            return_value=SimpleNamespace(returncode=0, stdout=output),
+        ) as call:
+            result = write_attempt(
+                None,
+                "/srv/UMR",
+                "/srv/agent/scripts/register_umr_assets.py",
+                "launch",
+                "prod-run-001",
+                approved_hash=approved,
+                execution_mode="native",
+            )
+
+        self.assertEqual(result.state, "queued")
+        command = call.call_args.args[0]
+        self.assertEqual(command[0], "/srv/UMR/.venv/bin/python")
+        self.assertEqual(command[1], "/srv/agent/scripts/launch_character_attempt.py")
+        self.assertNotIn("wsl.exe", command)
+
+    def test_native_read_executes_python_without_wsl(self) -> None:
+        status = {
+            "attempt": "prod-run-001",
+            "state": "running",
+            "plan_hash": "a" * 64,
+            "motion_id": "run",
+        }
+        with patch(
+            "umr_agent.api.wsl_attempts.subprocess.run",
+            return_value=SimpleNamespace(returncode=0, stdout=json.dumps(status)),
+        ) as call:
+            result = read_attempt(
+                None,
+                "/srv/UMR",
+                "/srv/agent/scripts/register_umr_assets.py",
+                "prod-run-001",
+                "status",
+                execution_mode="native",
+            )
+
+        self.assertEqual(result.state, "running")
+        command = call.call_args.args[0]
+        self.assertEqual(command[0], "/srv/UMR/.venv/bin/python")
+        self.assertEqual(command[1], "/srv/agent/scripts/inspect_character_attempt.py")
+        self.assertNotIn("wsl.exe", command)
+
 
 if __name__ == "__main__":
     unittest.main()

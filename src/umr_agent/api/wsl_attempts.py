@@ -97,7 +97,7 @@ class AttemptRejected(RuntimeError):
 def write_attempt(distro: str | None, root: str | None, registration_script: str | None,
                   action: str, attempt: str, motion_id: str | None = None,
                   max_frames: int | None = None, approved_hash: str | None = None,
-                  profile: str | None = None
+                  profile: str | None = None, execution_mode: str = "wsl"
                   ) -> PreparedAttempt | QueuedAttempt:
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", attempt):
         raise ValueError("Invalid attempt name")
@@ -122,24 +122,44 @@ def write_attempt(distro: str | None, root: str | None, registration_script: str
             raise ValueError("Approval must match a 64-character plan hash")
     else:
         raise ValueError("Unknown attempt action")
-    if not all((distro, root, registration_script)) or not re.fullmatch(r"[A-Za-z0-9_-]+", distro):
+    if execution_mode not in {"wsl", "native"}:
+        raise RuntimeError("Attempt execution mode is invalid")
+    if not all((root, registration_script)):
+        raise RuntimeError("Attempt bridge is not configured")
+    if execution_mode == "wsl" and (
+        not distro or not re.fullmatch(r"[A-Za-z0-9_-]+", distro)
+    ):
         raise RuntimeError("Ubuntu bridge is not configured")
+
     root_path, script_path = PurePosixPath(root), PurePosixPath(registration_script)
     if any(not path.is_absolute() or ".." in path.parts for path in (root_path, script_path)):
-        raise RuntimeError("Ubuntu bridge paths are invalid")
+        raise RuntimeError("Attempt bridge paths are invalid")
+
     python = str(root_path / ".venv/bin/python")
+    prefix = (
+        ["wsl.exe", "-d", distro, "--exec", python]
+        if execution_mode == "wsl"
+        else [python]
+    )
     common = ["--umr-root", root, "--attempt", attempt]
+
     if action == "prepare":
-        command = ["wsl.exe", "-d", distro, "--exec", python,
-                   str(script_path.with_name("run_character_attempt.py")), "prepare",
-                   *common,
-                   "--motion-id", motion_id,
-                   "--max-frames", str(max_frames),
-                   "--profile", profile]
+        command = [
+            *prefix,
+            str(script_path.with_name("run_character_attempt.py")),
+            "prepare",
+            *common,
+            "--motion-id", motion_id,
+            "--max-frames", str(max_frames),
+            "--profile", profile,
+        ]
     else:
-        command = ["wsl.exe", "-d", distro, "--exec", python,
-                   str(script_path.with_name("launch_character_attempt.py")),
-                   *common, "--approve-plan-hash", approved_hash]
+        command = [
+            *prefix,
+            str(script_path.with_name("launch_character_attempt.py")),
+            *common,
+            "--approve-plan-hash", approved_hash,
+        ]
     try:
         process = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
                                  text=True, timeout=120, check=False)
@@ -161,20 +181,40 @@ def write_attempt(distro: str | None, root: str | None, registration_script: str
 
 
 def read_attempt(distro: str | None, root: str | None, registration_script: str | None,
-                 attempt: str, action: str) -> PreparedAttempt | AttemptStatus | AttemptDiagnosis:
+                 attempt: str, action: str, execution_mode: str = "wsl"
+                 ) -> PreparedAttempt | AttemptStatus | AttemptDiagnosis:
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", attempt):
         raise ValueError("Invalid attempt name")
     if action not in {"plan", "status", "diagnose"}:
         raise ValueError("Invalid read action")
-    if not all((distro, root, registration_script)) or not re.fullmatch(r"[A-Za-z0-9_-]+", distro):
+    if execution_mode not in {"wsl", "native"}:
+        raise RuntimeError("Attempt execution mode is invalid")
+    if not all((root, registration_script)):
+        raise RuntimeError("Attempt bridge is not configured")
+    if execution_mode == "wsl" and (
+        not distro or not re.fullmatch(r"[A-Za-z0-9_-]+", distro)
+    ):
         raise RuntimeError("Ubuntu bridge is not configured")
+
     root_path = PurePosixPath(root)
     script_path = PurePosixPath(registration_script)
     if any(not path.is_absolute() or ".." in path.parts for path in (root_path, script_path)):
-        raise RuntimeError("Ubuntu bridge paths are invalid")
+        raise RuntimeError("Attempt bridge paths are invalid")
+
+    python = str(root_path / ".venv/bin/python")
     reader = str(script_path.with_name("inspect_character_attempt.py"))
-    command = ["wsl.exe", "-d", distro, "--exec", str(root_path / ".venv/bin/python"),
-               reader, "--umr-root", root, "--attempt", attempt, "--action", action]
+    prefix = (
+        ["wsl.exe", "-d", distro, "--exec", python]
+        if execution_mode == "wsl"
+        else [python]
+    )
+    command = [
+        *prefix,
+        reader,
+        "--umr-root", root,
+        "--attempt", attempt,
+        "--action", action,
+    ]
     try:
         process = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
                                  text=True, timeout=120 if action == "diagnose" else 15,

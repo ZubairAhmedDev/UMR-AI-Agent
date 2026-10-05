@@ -45,6 +45,7 @@ class Settings(BaseModel):
     api_token: str | None = Field(default=None, min_length=32)
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "gemma3:4b"
+    execution_mode: str = Field(default="wsl", pattern=r"^(wsl|native)$")
     wsl_distro: str | None = None
     wsl_root: str | None = None
     wsl_script: str | None = None
@@ -56,6 +57,7 @@ class Settings(BaseModel):
             api_token=os.getenv("UMR_AGENT_API_TOKEN") or None,
             ollama_url=os.getenv("UMR_AGENT_OLLAMA_URL", "http://127.0.0.1:11434"),
             ollama_model=os.getenv("UMR_AGENT_OLLAMA_MODEL", "gemma3:4b"),
+            execution_mode=os.getenv("UMR_AGENT_EXECUTION_MODE", "wsl"),
             wsl_distro=os.getenv("UMR_AGENT_WSL_DISTRO") or None,
             wsl_root=os.getenv("UMR_AGENT_WSL_ROOT") or None,
             wsl_script=os.getenv("UMR_AGENT_WSL_SCRIPT") or None,
@@ -141,6 +143,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     config = settings or Settings.from_environment()
     app = FastAPI(title="UMR Agent API", version="0.2.0")
 
+    def bridge_mode() -> dict[str, str]:
+        return {} if config.execution_mode == "wsl" else {"execution_mode": config.execution_mode}
+
     def require_api_token(authorization: str | None = Header(default=None)) -> None:
         if config.api_token is None:
             raise HTTPException(status_code=503, detail="API token is not configured.")
@@ -166,14 +171,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/assets/status", response_model=AssetStatus, dependencies=[Depends(require_api_token)])
     def asset_status() -> AssetStatus:
-        return check_assets(config.wsl_distro, config.wsl_root, config.wsl_script)
+        return check_assets(config.wsl_distro, config.wsl_root, config.wsl_script, **bridge_mode())
 
     @app.get("/api/attempts/{attempt}/status", response_model=AttemptStatus,
              dependencies=[Depends(require_api_token)])
     def attempt_status(attempt: str) -> AttemptStatus:
         try:
             return read_attempt(config.wsl_distro, config.wsl_root, config.wsl_script,
-                                attempt, "status")
+                                attempt, "status", **bridge_mode())
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except RuntimeError as exc:
@@ -184,7 +189,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def attempt_plan(attempt: str) -> PreparedAttempt:
         try:
             return read_attempt(config.wsl_distro, config.wsl_root, config.wsl_script,
-                                attempt, "plan")
+                                attempt, "plan", **bridge_mode())
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except RuntimeError as exc:
@@ -203,6 +208,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 body.motion_id,
                 body.max_frames,
                 profile=body.profile,
+                **bridge_mode(),
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -216,7 +222,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def launch_attempt(attempt: str, body: LaunchAttemptRequest) -> QueuedAttempt:
         try:
             return write_attempt(config.wsl_distro, config.wsl_root, config.wsl_script,
-                                 "launch", attempt, approved_hash=body.approved_plan_hash)
+                                 "launch", attempt, approved_hash=body.approved_plan_hash, **bridge_mode())
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except AttemptRejected as exc:
@@ -229,7 +235,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def attempt_diagnosis(attempt: str) -> AttemptDiagnosis:
         try:
             return read_attempt(config.wsl_distro, config.wsl_root, config.wsl_script,
-                                attempt, "diagnose")
+                                attempt, "diagnose", **bridge_mode())
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except RuntimeError as exc:
@@ -250,12 +256,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     config.wsl_script,
                     name,
                     action,
+                    **bridge_mode(),
                 ),
                 lambda **kwargs: write_attempt(
                     config.wsl_distro,
                     config.wsl_root,
                     config.wsl_script,
                     **kwargs,
+                    **bridge_mode(),
                 ),
             )
 
@@ -289,6 +297,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     config.wsl_script,
                     name,
                     action,
+                    **bridge_mode(),
                 ),
             )
 
@@ -325,7 +334,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return run_diagnosis(
                 attempt, body.goal, model,
                 lambda name, action: read_attempt(config.wsl_distro, config.wsl_root,
-                                                  config.wsl_script, name, action),
+                                                  config.wsl_script, name, action, **bridge_mode()),
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -339,7 +348,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def review(body: ReviewRequest) -> InputReview:
         if body.robot_id != "unitree-g1" or body.motion_id != "humanoid-spin-kick":
             raise HTTPException(status_code=409, detail="Only the G1 spin kick inputs can be reviewed.")
-        status = check_assets(config.wsl_distro, config.wsl_root, config.wsl_script)
+        status = check_assets(config.wsl_distro, config.wsl_root, config.wsl_script, **bridge_mode())
         try:
             return build_input_review(body, status)
         except ValueError as exc:
