@@ -6,7 +6,7 @@ __pycache__/
 .env
 dist/
 build/
-artifacts/
+/artifacts/
 workspaces/
 node_modules/
 .next/
