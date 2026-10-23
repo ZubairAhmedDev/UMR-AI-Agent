@@ -236,3 +236,75 @@ export async function propose(goal: string, provider: "rules" | "ollama"): Promi
     }),
   );
 }
+
+export type WorkflowState =
+  | "prepared"
+  | "queued"
+  | "running_baseline"
+  | "running_candidate"
+  | "evaluating"
+  | "rendering_preview"
+  | "completed"
+  | "failed";
+
+export type MotionWorkflow = {
+  workflow_id: string;
+  state: WorkflowState;
+  baseline_attempt: string;
+  candidate_attempt: string;
+  approval_hash: string | null;
+  winner: "baseline" | "candidate" | null;
+  winner_attempt: string | null;
+  error: string | null;
+};
+
+export async function prepareWorkflow(
+  workflowId: string,
+  motionId: "spin-kick" | "run" | "speed-vault",
+): Promise<MotionWorkflow> {
+  return parseResponse<MotionWorkflow>(
+    await fetch("/api/workflows", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        workflow_id: workflowId,
+        motion_id: motionId,
+      }),
+    }),
+  );
+}
+
+export async function launchWorkflow(
+  workflowId: string,
+  approvedWorkflowHash: string,
+): Promise<MotionWorkflow> {
+  return parseResponse<MotionWorkflow>(
+    await fetch(
+      `/api/workflows/${encodeURIComponent(workflowId)}/launch`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          approved_workflow_hash: approvedWorkflowHash,
+        }),
+      },
+    ),
+  );
+}
+
+export async function getWorkflow(
+  workflowId: string,
+): Promise<MotionWorkflow> {
+  return parseResponse<MotionWorkflow>(
+    await fetch(
+      `/api/workflows/${encodeURIComponent(workflowId)}`,
+      {
+        cache: "no-store",
+      },
+    ),
+  );
+}

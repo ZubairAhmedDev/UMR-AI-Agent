@@ -7,6 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from umr_agent.agent.contracts import AgentCatalog, AgentReply, AgentRequest
@@ -19,6 +20,13 @@ from umr_agent.agent.diagnosis_loop import (
 from umr_agent.agent.improvement_service import (
     evaluate_improvement,
     prepare_improvement,
+)
+from umr_agent.agent.workflow_preparation import prepare_motion_workflow
+from umr_agent.agent.workflow_service import (
+    MotionWorkflow,
+    queue_workflow,
+    read_workflow,
+    workflow_approval_hash,
 )
 from umr_agent.agent.models import RuleBasedPlannerModel
 from umr_agent.agent.providers.ollama import ModelUnavailable, OllamaPlannerModel
@@ -108,6 +116,32 @@ class ImprovementResponse(BaseModel):
     reason: str
 
 
+class PrepareWorkflowRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,77}$")
+    motion_id: str = Field(pattern=r"^(spin-kick|run|speed-vault)$")
+
+
+class LaunchWorkflowRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approved_workflow_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class WorkflowResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_id: str
+    state: str
+    baseline_attempt: str
+    candidate_attempt: str
+    approval_hash: str | None = None
+    winner: str | None = None
+    winner_attempt: str | None = None
+    error: str | None = None
+
+
 class DiagnosisScoreResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -146,6 +180,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def bridge_mode() -> dict[str, str]:
         return {} if config.execution_mode == "wsl" else {"execution_mode": config.execution_mode}
 
+    def workflow_root() -> Path:
+        if config.execution_mode != "native":
+            raise HTTPException(
+                status_code=409,
+                detail="Persistent workflows require native execution mode.",
+            )
+
+        if not config.wsl_root or not config.wsl_script:
+            raise HTTPException(
+                status_code=503,
+                detail="Persistent workflow execution is not configured.",
+            )
+
+        return Path(config.wsl_root)
+
+    def workflow_response(workflow: MotionWorkflow) -> WorkflowResponse:
+        approval_hash = (
+            workflow_approval_hash(workflow)
+            if workflow.state == "prepared"
+            else None
+        )
+
+        return WorkflowResponse(
+            workflow_id=workflow.workflow_id,
+            state=workflow.state,
+            baseline_attempt=workflow.baseline_attempt,
+            candidate_attempt=workflow.candidate_attempt,
+            approval_hash=approval_hash,
+            winner=workflow.winner,
+            winner_attempt=workflow.winner_attempt,
+            error=workflow.error,
+        )
+
     def require_api_token(authorization: str | None = Header(default=None)) -> None:
         if config.api_token is None:
             raise HTTPException(status_code=503, detail="API token is not configured.")
@@ -172,6 +239,435 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/assets/status", response_model=AssetStatus, dependencies=[Depends(require_api_token)])
     def asset_status() -> AssetStatus:
         return check_assets(config.wsl_distro, config.wsl_root, config.wsl_script, **bridge_mode())
+
+    @app.post(
+        "/api/workflows",
+        response_model=WorkflowResponse,
+        dependencies=[Depends(require_api_token)],
+    )
+    def prepare_workflow(body: PrepareWorkflowRequest) -> WorkflowResponse:
+        root = workflow_root()
+
+        try:
+            workflow = prepare_motion_workflow(
+                root,
+                body.workflow_id,
+                body.motion_id,
+                lambda **kwargs: write_attempt(
+                    config.wsl_distro,
+                    config.wsl_root,
+                    config.wsl_script,
+                    **kwargs,
+                    **bridge_mode(),
+                ),
+            )
+
+            return workflow_response(workflow)
+
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=str(exc),
+            ) from exc
+        except AttemptRejected as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=str(exc),
+            ) from exc
+        except (OSError, RuntimeError) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=str(exc),
+            ) from exc
+
+    @app.post(
+        "/api/workflows/{workflow_id}/launch",
+        response_model=WorkflowResponse,
+        dependencies=[Depends(require_api_token)],
+    )
+    def launch_workflow(
+        workflow_id: str,
+        body: LaunchWorkflowRequest,
+    ) -> WorkflowResponse:
+        root = workflow_root()
+
+        try:
+            workflow = queue_workflow(
+                root,
+                workflow_id,
+                body.approved_workflow_hash,
+            )
+
+            return workflow_response(workflow)
+
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Workflow was not found.",
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=str(exc),
+            ) from exc
+        except OSError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Workflow state could not be updated.",
+            ) from exc
+
+    @app.get(
+        "/api/workflows/{workflow_id}",
+        response_model=WorkflowResponse,
+        dependencies=[Depends(require_api_token)],
+    )
+    def workflow_status(workflow_id: str) -> WorkflowResponse:
+        root = workflow_root()
+
+        try:
+            workflow = read_workflow(
+                root,
+                workflow_id,
+            )
+
+            return workflow_response(workflow)
+
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Workflow was not found.",
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=str(exc),
+            ) from exc
+        except (
+            OSError,
+            KeyError,
+            TypeError,
+            json.JSONDecodeError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Workflow state could not be read.",
+            ) from exc
+
+    def workflow_preview_path(
+        workflow_id: str,
+        filename: str,
+    ) -> Path:
+        root = workflow_root().resolve()
+
+        try:
+            workflow = read_workflow(
+                root,
+                workflow_id,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Workflow was not found.",
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=str(exc),
+            ) from exc
+        except (
+            OSError,
+            KeyError,
+            TypeError,
+            json.JSONDecodeError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Workflow state could not be read.",
+            ) from exc
+
+        if workflow.state != "completed":
+            raise HTTPException(
+                status_code=409,
+                detail="Workflow preview is not ready.",
+            )
+
+        if workflow.winner not in {
+            "baseline",
+            "candidate",
+        }:
+            raise HTTPException(
+                status_code=503,
+                detail="Completed workflow has no valid winner.",
+            )
+
+        expected_attempt = (
+            workflow.candidate_attempt
+            if workflow.winner == "candidate"
+            else workflow.baseline_attempt
+        )
+
+        if workflow.winner_attempt != expected_attempt:
+            raise HTTPException(
+                status_code=503,
+                detail="Workflow winner is inconsistent.",
+            )
+
+        attempts_root = (
+            root
+            / "output"
+            / "agent_attempts"
+        ).resolve()
+
+        attempt_dir = (
+            attempts_root
+            / expected_attempt
+        ).resolve()
+
+        if attempt_dir.parent != attempts_root:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid winning attempt.",
+            )
+
+        preview = (
+            attempt_dir
+            / filename
+        ).resolve()
+
+        if preview.parent != attempt_dir:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid preview path.",
+            )
+
+        if not preview.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail="Workflow preview was not found.",
+            )
+
+        return preview
+
+    @app.get(
+        "/api/workflows/{workflow_id}/preview/video",
+        dependencies=[Depends(require_api_token)],
+    )
+    def workflow_preview_video(
+        workflow_id: str,
+    ) -> FileResponse:
+        preview = workflow_preview_path(
+            workflow_id,
+            "preview.mp4",
+        )
+
+        return FileResponse(
+            preview,
+            media_type="video/mp4",
+            headers={
+                "Cache-Control": "private, no-store",
+            },
+        )
+
+    @app.get(
+        "/api/workflows/{workflow_id}/preview/image",
+        dependencies=[Depends(require_api_token)],
+    )
+    def workflow_preview_image(
+        workflow_id: str,
+    ) -> FileResponse:
+        preview = workflow_preview_path(
+            workflow_id,
+            "preview.png",
+        )
+
+        return FileResponse(
+            preview,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "private, no-store",
+            },
+        )
+
+    def workflow_motion_path(
+        workflow_id: str,
+    ) -> Path:
+        root = workflow_root().resolve()
+
+        try:
+            workflow = read_workflow(
+                root,
+                workflow_id,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Workflow was not found.",
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=str(exc),
+            ) from exc
+        except (
+            OSError,
+            KeyError,
+            TypeError,
+            json.JSONDecodeError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Workflow state could not be read.",
+            ) from exc
+
+        if workflow.state != "completed":
+            raise HTTPException(
+                status_code=409,
+                detail="Winning motion is not ready.",
+            )
+
+        if workflow.winner not in {
+            "baseline",
+            "candidate",
+        }:
+            raise HTTPException(
+                status_code=503,
+                detail="Completed workflow has no valid winner.",
+            )
+
+        expected_attempt = (
+            workflow.candidate_attempt
+            if workflow.winner == "candidate"
+            else workflow.baseline_attempt
+        )
+
+        if workflow.winner_attempt != expected_attempt:
+            raise HTTPException(
+                status_code=503,
+                detail="Workflow winner is inconsistent.",
+            )
+
+        attempts_root = (
+            root
+            / "output"
+            / "agent_attempts"
+        ).resolve()
+
+        attempt_dir = (
+            attempts_root
+            / expected_attempt
+        ).resolve()
+
+        if attempt_dir.parent != attempts_root:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid winning attempt.",
+            )
+
+        plan_path = (
+            attempt_dir
+            / "plan.json"
+        )
+
+        if not plan_path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail="Winning motion plan was not found.",
+            )
+
+        try:
+            plan = json.loads(
+                plan_path.read_text(
+                    encoding="utf-8",
+                )
+            )
+            output_value = plan["output"]
+        except (
+            OSError,
+            KeyError,
+            TypeError,
+            json.JSONDecodeError,
+        ) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Winning motion plan is invalid.",
+            ) from exc
+
+        if (
+            not isinstance(output_value, str)
+            or not output_value
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail="Winning motion output is invalid.",
+            )
+
+        output_path = Path(output_value)
+
+        if output_path.is_absolute():
+            motion = output_path.resolve()
+        else:
+            motion = (
+                attempt_dir
+                / output_path
+            ).resolve()
+
+        if (
+            motion.parent != attempt_dir
+            or motion.suffix.lower() != ".npz"
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail="Winning motion path is invalid.",
+            )
+
+        if not motion.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail="Winning motion was not found.",
+            )
+
+        return motion
+
+    @app.get(
+        "/api/workflows/{workflow_id}/download/motion",
+        dependencies=[Depends(require_api_token)],
+    )
+    def workflow_download_motion(
+        workflow_id: str,
+    ) -> FileResponse:
+        motion = workflow_motion_path(
+            workflow_id,
+        )
+
+        return FileResponse(
+            motion,
+            media_type="application/octet-stream",
+            filename=motion.name,
+            headers={
+                "Cache-Control": "private, no-store",
+            },
+        )
+
+    @app.get(
+        "/api/workflows/{workflow_id}/download/preview",
+        dependencies=[Depends(require_api_token)],
+    )
+    def workflow_download_preview(
+        workflow_id: str,
+    ) -> FileResponse:
+        preview = workflow_preview_path(
+            workflow_id,
+            "preview.mp4",
+        )
+
+        return FileResponse(
+            preview,
+            media_type="video/mp4",
+            filename=preview.name,
+            headers={
+                "Cache-Control": "private, no-store",
+            },
+        )
 
     @app.get("/api/attempts/{attempt}/status", response_model=AttemptStatus,
              dependencies=[Depends(require_api_token)])

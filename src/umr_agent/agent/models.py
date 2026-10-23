@@ -39,17 +39,36 @@ class RuleBasedPlannerModel:
     def select(self, request: AgentRequest, catalog: AgentCatalog) -> ModelSelection:
         goal = request.goal
         normalized = _normalize(goal)
+
+        robot_id = _match_catalog_id(goal, catalog.robots, "robot_id")
+        motion_id = _match_catalog_id(goal, catalog.motions, "motion_id")
+
+        explicit_motion_intent = any(
+            term in normalized
+            for term in (
+                "retarget",
+                "motion",
+                "animate",
+                "create",
+                "generate",
+                "make",
+                "perform",
+                "do",
+            )
+        )
+
         intent = (
             AgentIntent.PLAN_RETARGET
-            if any(term in normalized for term in ("retarget", "motion", "animate"))
+            if explicit_motion_intent or (robot_id is not None and motion_id is not None)
             else AgentIntent.UNKNOWN
         )
+
         worker_match = re.search(r"\b(\d{1,2})\s+(?:correspondence\s+)?workers?\b", normalized)
         workers = int(worker_match.group(1)) if worker_match else 6
         return ModelSelection(
             intent=intent,
-            robot_id=_match_catalog_id(goal, catalog.robots, "robot_id"),
-            motion_id=_match_catalog_id(goal, catalog.motions, "motion_id"),
+            robot_id=robot_id,
+            motion_id=motion_id,
             correspondence_workers=workers,
             explanation="Selection was derived from registered catalog names and aliases.",
         )

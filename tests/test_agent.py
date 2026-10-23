@@ -72,6 +72,34 @@ class AgentTests(unittest.TestCase):
         self.assertFalse(reply.proposal.executable)
         self.assertTrue(reply.proposal.requires_human_approval)
 
+    def test_natural_create_request_creates_proposal(self) -> None:
+        service = AgentService(RuleBasedPlannerModel(), make_catalog())
+        reply = service.handle(
+            AgentRequest(
+                project_id="project-1",
+                actor="researcher",
+                goal="Create a spin kick for Unitree G1",
+            )
+        )
+        self.assertEqual(reply.status, ReplyStatus.PROPOSAL)
+        self.assertIsNotNone(reply.proposal)
+        self.assertEqual(reply.proposal.robot_id, "unitree-g1")
+        self.assertEqual(reply.proposal.motion_id, "spin-kick")
+
+    def test_make_robot_do_motion_creates_proposal(self) -> None:
+        service = AgentService(RuleBasedPlannerModel(), make_catalog())
+        reply = service.handle(
+            AgentRequest(
+                project_id="project-1",
+                actor="researcher",
+                goal="Make G1 do a spin kick",
+            )
+        )
+        self.assertEqual(reply.status, ReplyStatus.PROPOSAL)
+        self.assertIsNotNone(reply.proposal)
+        self.assertEqual(reply.proposal.robot_id, "unitree-g1")
+        self.assertEqual(reply.proposal.motion_id, "spin-kick")
+
     def test_missing_motion_requests_clarification(self) -> None:
         service = AgentService(RuleBasedPlannerModel(), make_catalog())
         reply = service.handle(

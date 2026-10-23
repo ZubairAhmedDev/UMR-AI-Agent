@@ -124,3 +124,52 @@ h1 { font-size: clamp(30px, 4vw, 39px); letter-spacing: -.04em; margin: 10px 0 1
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 760px) { .sidebar { width: 72px; padding: 20px 10px; } .brand { padding: 0 8px 30px; } .brand > div, .sidebar-section, .sidebar-footer { display: none; } .content { padding: 32px 20px 45px; } .topbar { padding: 0 20px; } .example-list { grid-template-columns: 1fr; } }
 @media (max-width: 480px) { .sidebar { display: none; } .proposal-card dl { grid-template-columns: 1fr; } .proposal-card dl div:nth-child(odd) { border-right: 0; } .user-message { max-width: 94%; } .provider-label { gap: 5px; } }
+
+.motion-preview {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 4 / 3;
+  margin: 16px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #0b0f14;
+  object-fit: contain;
+}
+
+.workflow-result .motion-preview-caption {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.download-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0 4px;
+}
+
+.workflow-panel .download-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 7px;
+  background: var(--blue);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.workflow-panel .download-link.secondary-download {
+  background: white;
+  color: var(--blue);
+  border: 1px solid #bed4eb;
+}
+
+.workflow-panel .download-link.secondary-download:hover {
+  background: #edf5fc;
+}

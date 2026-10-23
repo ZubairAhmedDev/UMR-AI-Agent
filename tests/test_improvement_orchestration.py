@@ -104,30 +104,42 @@ def test_does_not_improve_non_baseline_profile():
     assert result.candidate_attempt is None
 
 
-def test_does_not_improve_when_errors_exist():
+def test_prepares_candidate_even_when_baseline_has_errors():
     reader = make_reader(errors=1, skating=5)
 
+    def writer(**kwargs):
+        return SimpleNamespace(
+            attempt=kwargs["attempt"],
+            plan_hash="a" * 64,
+        )
+
     result = prepare_improvement(
         "attempt-1",
         reader,
-        lambda **kwargs: None,
+        writer,
     )
 
-    assert result.state == "not_applicable"
-    assert result.candidate_attempt is None
+    assert result.state == "approval_required"
+    assert result.candidate_attempt == "attempt-1-gc"
 
 
-def test_no_candidate_when_no_skating_exists():
+def test_prepares_candidate_even_when_no_skating_exists():
     reader = make_reader(skating=0)
 
+    def writer(**kwargs):
+        return SimpleNamespace(
+            attempt=kwargs["attempt"],
+            plan_hash="a" * 64,
+        )
+
     result = prepare_improvement(
         "attempt-1",
         reader,
-        lambda **kwargs: None,
+        writer,
     )
 
-    assert result.state == "not_needed"
-    assert result.candidate_attempt is None
+    assert result.state == "approval_required"
+    assert result.candidate_attempt == "attempt-1-gc"
 
 
 def test_prepares_ground_contact_candidate_when_skating_exists():

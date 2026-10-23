@@ -26,8 +26,8 @@ class AgentService:
             return AgentReply(
                 status=ReplyStatus.CLARIFICATION,
                 intent=selection.intent,
-                message="I can currently prepare motion-retargeting plans only.",
-                questions=("Which registered motion should be retargeted to which robot?",),
+                message="I can currently help create supported robot motions.",
+                questions=("Which motion would you like the robot to perform?",),
             )
 
         questions: list[str] = []
@@ -69,8 +69,8 @@ class AgentService:
             status=ReplyStatus.PROPOSAL,
             intent=selection.intent,
             message=(
-                f"I found '{motion.name}' for '{robot.name}'. This is a motion selection; "
-                "no run has started. The local worker checks the files when you generate a run plan."
+                f"{motion.name} is available for {robot.name}. "
+                "The agent is ready to prepare the motion."
             ),
             proposal=proposal,
             warnings=tuple(warnings),

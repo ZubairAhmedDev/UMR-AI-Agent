@@ -146,27 +146,6 @@ def prepare_improvement(
             reason="Only baseline attempts can start an improvement cycle.",
         )
 
-    diagnosis = reader(baseline_attempt, "diagnose")
-    score = score_diagnosis(diagnosis)
-
-    if score.errors > 0:
-        return ImprovementPreparation(
-            state="not_applicable",
-            baseline_attempt=baseline_attempt,
-            candidate_attempt=None,
-            candidate_plan_hash=None,
-            reason="Baseline contains errors that require review before automatic improvement.",
-        )
-
-    if score.skating_frames == 0:
-        return ImprovementPreparation(
-            state="not_needed",
-            baseline_attempt=baseline_attempt,
-            candidate_attempt=None,
-            candidate_plan_hash=None,
-            reason="No foot skating was detected.",
-        )
-
     candidate_attempt = improvement_attempt_name(baseline_attempt)
 
     prepared: PreparedAttempt | None = None
@@ -209,8 +188,8 @@ def prepare_improvement(
         candidate_attempt=prepared.attempt,
         candidate_plan_hash=prepared.plan_hash,
         reason=(
-            f"Detected {score.skating_frames} foot-skating frames. "
-            "A ground-contact candidate is ready and requires approval."
+            "A deterministic improved version is ready for comparison "
+            "and requires approval."
         ),
     )
 
